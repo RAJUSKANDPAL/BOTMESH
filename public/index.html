@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bot Mesh - Choose AI Model</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f12;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    h1 { font-size: 2.5rem; margin-bottom: 20px; }
+    .models {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      width: 80%;
+      max-width: 900px;
+    }
+    .card {
+      background: #1a1a1f;
+      padding: 30px;
+      border-radius: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 0 20px rgba(0, 255, 200, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <h1>🤖 Bot Mesh</h1>
+  <p>Select an AI Model to Begin</p>
+
+  <div class="models" id="modelList"></div>
+
+  <script>
+    async function loadModels() {
+      try {
+        let res = await fetch("http://localhost:5000/models");
+        if (!res.ok) throw new Error("Backend not ready");
+        let models = await res.json();
+        renderModels(models);
+      } catch (err) {
+        console.log("Using fallback models:", err);
+        renderModels(["GPT-5", "Claude", "LLaMA", "Gemini"]); // fallback
+      }
+    }
+
+    function renderModels(models) {
+      const container = document.getElementById("modelList");
+      container.innerHTML = "";
+      models.forEach(model => {
+        let div = document.createElement("div");
+        div.className = "card";
+        div.innerText = model;
+        div.onclick = () => chooseModel(model);
+        container.appendChild(div);
+      });
+    }
+
+    function chooseModel(model) {
+      localStorage.setItem("selectedModel", model);
+      window.location.href = "chat.html";
+    }
+
+    loadModels();
+  </script>
+</body>
+</html>

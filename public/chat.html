@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bot Mesh - AI Agent</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0f0f12; color: #fff; display: flex; height: 100vh; }
+    .sidebar { width: 250px; background: #1a1a1f; padding: 20px; border-right: 1px solid #333; display: flex; flex-direction: column; gap: 20px; }
+    .chat-container { flex: 1; display: flex; flex-direction: column; }
+    .chat-header { padding: 20px; border-bottom: 1px solid #333; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+    .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .message { max-width: 70%; padding: 12px; border-radius: 12px; }
+    .user { align-self: flex-end; background: #0066ff; }
+    .ai { align-self: flex-start; background: #1e1e2e; }
+    .chat-input { display: flex; border-top: 1px solid #333; padding: 15px; }
+    .chat-input input { flex: 1; padding: 12px; border: none; border-radius: 8px; outline: none; }
+    .chat-input button { margin-left: 10px; padding: 12px 18px; border: none; border-radius: 8px; background: #00d1b2; color: #fff; cursor: pointer; transition: background 0.2s; }
+    .chat-input button:hover { background: #00bfa5; }
+    .timer { font-size: 0.9rem; color: #bbb; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h3>⚡ Bot Mesh</h3>
+    <p id="modelInfo"></p>
+    <p class="timer">⏱ Session: <span id="sessionTimer">0:00</span></p>
+    <button onclick="switchModel()">Switch Model</button>
+  </div>
+
+  <div class="chat-container">
+    <div class="chat-header">
+      <span>AI Agent</span>
+      <span id="billingInfo"></span>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input">
+      <input type="text" id="userInput" placeholder="Type a message..." onkeypress="handleKey(event)">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const model = localStorage.getItem("selectedModel") || "Unknown Model";
+    document.getElementById("modelInfo").innerText = "Using: " + model;
+
+    let sessionId = null;
+    let secondsElapsed = 0;
+    let timerInterval;
+
+    async function startSession() {
+      try {
+        let res = await fetch("http://localhost:5000/start-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model })
+        });
+        if (!res.ok) throw new Error("Backend not ready");
+        let data = await res.json();
+        sessionId = data.sessionId;
+        console.log("Session started:", sessionId);
+      } catch (err) {
+        console.log("⚠️ Backend not ready, running dummy session:", err);
+        sessionId = "dummy-session";
+      }
+      startTimer();
+    }
+
+    async function endSession() {
+      clearInterval(timerInterval);
+      if (!sessionId) return;
+
+      try {
+        let res = await fetch("http://localhost:5000/end-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId })
+        });
+        if (res.ok) {
+          let data = await res.json();
+          document.getElementById("billingInfo").innerText = "💳 Charged: $" + data.charge;
+          console.log("Session ended:", data);
+        }
+      } catch (err) {
+        console.log("⚠️ Backend not ready, ending dummy session:", err);
+      }
+    }
+
+    function startTimer() {
+      const timerElement = document.getElementById("sessionTimer");
+      timerInterval = setInterval(() => {
+        secondsElapsed++;
+        let mins = Math.floor(secondsElapsed / 60);
+        let secs = secondsElapsed % 60;
+        timerElement.innerText = `${mins}:${secs.toString().padStart(2, '0')}`;
+      }, 1000);
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("userInput");
+      const msg = input.value.trim();
+      if (!msg) return;
+      addMessage(msg, "user");
+      input.value = "";
+
+      try {
+        let res = await fetch("http://localhost:5000/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model, message: msg, sessionId })
+        });
+        if (!res.ok) throw new Error("Backend not ready");
+        let data = await res.json();
+        addMessage(data.reply, "ai");
+      } catch (err) {
+        console.log("⚠️ Backend not ready, simulating AI:", err);
+        addMessage("[Simulated AI] You said: " + msg, "ai");
+      }
+    }
+
+    function addMessage(text, sender) {
+      const chat = document.getElementById("chatMessages");
+      const div = document.createElement("div");
+      div.className = "message " + sender;
+      div.innerText = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function handleKey(e) {
+      if (e.key === "Enter") sendMessage();
+    }
+
+    function switchModel() {
+      endSession();
+      window.location.href = "index.html";
+    }
+
+    window.addEventListener("beforeunload", endSession);
+    startSession();
+  </script>
+</body>
+</html>
